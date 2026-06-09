@@ -1,0 +1,26 @@
+import express from 'express'
+import cors from 'cors'
+import { authRoutes } from './routes/authRoutes.js'
+import { systemRoutes } from './routes/systemRoutes.js'
+import { env } from './config/env.js'
+
+export function createApp() {
+  const app = express()
+
+  app.use(
+    cors({
+      origin: env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [env.FRONTEND_URL],
+      credentials: true,
+    })
+  )
+  app.use(express.json())
+
+  app.get('/api/health', (_request, response) => {
+    response.json({ ok: true, service: 'nexa-systems-api' })
+  })
+
+  app.use('/api/auth', authRoutes)
+  app.use('/api/systems', systemRoutes)
+
+  return app
+}
