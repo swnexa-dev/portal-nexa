@@ -34,7 +34,7 @@ systemRoutes.get('/catalog', requireAuth, async (request, response) => {
 })
 
 systemRoutes.post('/:systemSlug/launch', requireAuth, async (request, response) => {
-  const system = getSystemBySlug(request.params.systemSlug)
+  const system = getSystemBySlug(String(request.params.systemSlug))
   if (!system) {
     return response.status(404).json({ message: 'Sistema nao encontrado' })
   }
