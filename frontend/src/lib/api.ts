@@ -1,6 +1,11 @@
 import type { AuthResponse, AuthUser, CatalogSystem } from '../types'
 
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
+function normalizeApiUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim().replace(/\/$/, '')
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+}
+
+const apiUrl = normalizeApiUrl(import.meta.env.VITE_API_URL ?? 'http://localhost:3000')
 
 async function readJson<T>(response: Response) {
   return (await response.json()) as T
