@@ -15,6 +15,10 @@ export function createApp() {
   )
   app.use(express.json())
 
+  app.get('/', (_request, response) => {
+    response.status(200).send('API Nexa online')
+  })
+
   app.get('/api/health', (_request, response) => {
     response.json({ ok: true, service: 'nexa-systems-api' })
   })
