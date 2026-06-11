@@ -12,11 +12,11 @@ export function requireAuth(request: Request, response: Response, next: NextFunc
   try {
     const payload = verifyToken(token)
     if (payload.type !== 'portal') {
-      return response.status(401).json({ message: 'Token invalido para o portal' })
+      return response.status(401).json({ message: 'Token inválido para o portal' })
     }
     request.auth = payload
     next()
   } catch {
-    return response.status(401).json({ message: 'Token invalido ou expirado' })
+    return response.status(401).json({ message: 'Token inválido ou expirado' })
   }
 }

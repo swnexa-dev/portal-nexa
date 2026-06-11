@@ -1,4 +1,4 @@
-import type { AuthResponse, AuthUser, CatalogSystem } from '../types'
+import type { AuthResponse, AuthUser, BillingSummary, CatalogSystem } from '../types'
 
 function normalizeApiUrl(rawUrl: string) {
   const trimmed = rawUrl.trim().replace(/\/$/, '')
@@ -16,8 +16,24 @@ type ApiError = {
 }
 
 function getErrorMessage(data: unknown, fallback: string) {
+  if (Array.isArray(data) && data.length > 0) {
+    const firstItem = data[0]
+    if (
+      typeof firstItem === 'object' &&
+      firstItem &&
+      'path' in firstItem &&
+      Array.isArray((firstItem as { path?: unknown }).path) &&
+      (firstItem as { path: unknown[] }).path.includes('email')
+    ) {
+      return 'Digite um e-mail válido, por exemplo: nome@empresa.com'
+    }
+  }
   if (typeof data === 'object' && data && 'message' in data && typeof (data as { message?: unknown }).message === 'string') {
-    return (data as { message: string }).message
+    const message = (data as { message: string }).message
+    if (message.toLowerCase().includes('email invalido') || message.toLowerCase().includes('email inválido')) {
+      return 'Digite um e-mail válido, por exemplo: nome@empresa.com'
+    }
+    return message
   }
   return fallback
 }
@@ -53,7 +69,7 @@ export async function requestRegisterCode(payload: { name: string; email: string
 
   const data = await readJson<{ email: string; expiresAt: string } | ApiError>(response)
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, 'Falha ao enviar codigo'))
+    throw new Error(getErrorMessage(data, 'Falha ao enviar código'))
   }
   return data as { email: string; expiresAt: string }
 }
@@ -67,7 +83,7 @@ export async function verifyRegisterCode(payload: { email: string; code: string 
 
   const data = await readJson<{ verified: boolean } | ApiError>(response)
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, 'Falha ao validar codigo'))
+    throw new Error(getErrorMessage(data, 'Falha ao validar código'))
   }
   return data as { verified: boolean }
 }
@@ -86,6 +102,53 @@ export async function login(payload: { email: string; password: string }) {
   return data as AuthResponse
 }
 
+export async function requestPasswordResetCode(payload: { email: string }) {
+  const response = await fetch(`${apiUrl}/auth/password-reset/request-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await readJson<{ email: string; expiresAt: string } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao enviar código de redefinição'))
+  }
+  return data as { email: string; expiresAt: string }
+}
+
+export async function verifyPasswordResetCode(payload: { email: string; code: string }) {
+  const response = await fetch(`${apiUrl}/auth/password-reset/verify-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await readJson<{ verified: boolean } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao validar código'))
+  }
+  return data as { verified: boolean }
+}
+
+export async function confirmPasswordReset(payload: {
+  email: string
+  code: string
+  password: string
+  passwordConfirm: string
+}) {
+  const response = await fetch(`${apiUrl}/auth/password-reset/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await readJson<{ success: boolean; message: string } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao redefinir senha'))
+  }
+  return data as { success: boolean; message: string }
+}
+
 export async function fetchMe(accessToken: string) {
   const response = await fetch(`${apiUrl}/auth/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -93,7 +156,7 @@ export async function fetchMe(accessToken: string) {
 
   const data = await readJson<{ user: AuthUser; meta: { remainingTrialDays: number } } | ApiError>(response)
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, 'Sessao invalida'))
+    throw new Error(getErrorMessage(data, 'Sessão inválida'))
   }
   return data as { user: AuthUser; meta: { remainingTrialDays: number } }
 }
@@ -121,4 +184,42 @@ export async function launchSystem(accessToken: string, systemSlug: string) {
     throw new Error(getErrorMessage(data, 'Falha ao abrir sistema'))
   }
   return data as { accessToken: string; launchUrl: string }
+}
+
+export async function fetchBillingSummary(accessToken: string) {
+  const response = await fetch(`${apiUrl}/billing/summary`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  const data = await readJson<BillingSummary | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao carregar assinatura'))
+  }
+  return data as BillingSummary
+}
+
+export async function createBillingCheckout(accessToken: string) {
+  const response = await fetch(`${apiUrl}/billing/checkout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  const data = await readJson<{ url: string } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao iniciar checkout'))
+  }
+  return data as { url: string }
+}
+
+export async function createBillingPortal(accessToken: string) {
+  const response = await fetch(`${apiUrl}/billing/portal`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  const data = await readJson<{ url: string } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao abrir portal de cobrança'))
+  }
+  return data as { url: string }
 }

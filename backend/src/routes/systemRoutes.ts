@@ -12,7 +12,7 @@ systemRoutes.get('/catalog', requireAuth, async (request, response) => {
   const user = await findUserById(request.auth!.sub)
 
   if (!user) {
-    return response.status(404).json({ message: 'Usuario nao encontrado' })
+    return response.status(404).json({ message: 'Usuário não encontrado' })
   }
 
   return response.json({
@@ -36,12 +36,12 @@ systemRoutes.get('/catalog', requireAuth, async (request, response) => {
 systemRoutes.post('/:systemSlug/launch', requireAuth, async (request, response) => {
   const system = getSystemBySlug(String(request.params.systemSlug))
   if (!system) {
-    return response.status(404).json({ message: 'Sistema nao encontrado' })
+    return response.status(404).json({ message: 'Sistema não encontrado' })
   }
 
   const user = await findUserById(request.auth!.sub)
   if (!user) {
-    return response.status(404).json({ message: 'Usuario nao encontrado' })
+    return response.status(404).json({ message: 'Usuário não encontrado' })
   }
 
   if (!canAccessSystem(user, system.slug)) {

@@ -43,3 +43,14 @@ export type AuthResponse = {
     remainingTrialDays: number
   }
 }
+
+export type BillingSummary = {
+  planName: string
+  priceLabel: string
+  includes: string
+  subscription: {
+    status: 'active' | 'inactive' | 'past_due'
+    currentPeriodEndsAt: string | null
+  } | null
+  hasStripeCustomer: boolean
+}

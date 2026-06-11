@@ -6,7 +6,7 @@ export function isTrialActive(user: Pick<UserDocument, 'trialEndsAt'>) {
 
 export function hasActiveSubscription(user: Pick<UserDocument, 'subscriptions'>, systemSlug: string) {
   return user.subscriptions.some((subscription) => {
-    if (subscription.systemSlug !== systemSlug) return false
+    if (subscription.systemSlug !== systemSlug && subscription.systemSlug !== 'all-access') return false
     if (subscription.status !== 'active') return false
     if (!subscription.currentPeriodEndsAt) return true
     return new Date(subscription.currentPeriodEndsAt).getTime() >= Date.now()

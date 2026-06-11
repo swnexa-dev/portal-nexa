@@ -19,6 +19,7 @@ const userSchema = new Schema(
     document: { type: String, required: true, trim: true, unique: true },
     documentDigits: { type: String, required: true, trim: true, unique: true },
     passwordHash: { type: String, required: true },
+    stripeCustomerId: { type: String, default: null, trim: true },
     trialStartedAt: { type: Date, required: true },
     trialEndsAt: { type: Date, required: true },
     subscriptions: { type: [userSubscriptionSchema], default: [] },

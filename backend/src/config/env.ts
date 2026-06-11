@@ -3,8 +3,8 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   PORT: z.string().default('3000'),
-  MONGODB_URI: z.string().min(1, 'MONGODB_URI obrigatorio'),
-  JWT_SECRET: z.string().min(1, 'JWT_SECRET obrigatorio'),
+  MONGODB_URI: z.string().min(1, 'MONGODB_URI obrigatório'),
+  JWT_SECRET: z.string().min(1, 'JWT_SECRET obrigatório'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   SSO_JWT_EXPIRES_IN: z.string().default('8h'),
   TRIAL_DAYS: z.string().default('14'),
@@ -13,6 +13,9 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('Nexa Systems <onboarding@resend.dev>'),
   EMAIL_CODE_EXPIRES_MINUTES: z.string().default('15'),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_ID_ALL_ACCESS: z.string().optional(),
   FLUXIO_URL: z.string().optional(),
   CHECKLISTS_URL: z.string().optional(),
   AGENDAMENTOS_URL: z.string().optional()
@@ -21,7 +24,7 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env)
 
 if (!parsed.success) {
-  throw new Error(`Configuracao invalida: ${parsed.error.issues.map((issue) => issue.message).join(', ')}`)
+  throw new Error(`Configuração inválida: ${parsed.error.issues.map((issue) => issue.message).join(', ')}`)
 }
 
 export const env = {

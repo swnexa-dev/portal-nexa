@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import { authRoutes } from './routes/authRoutes.js'
+import { billingRoutes, stripeWebhookHandler } from './routes/billingRoutes.js'
 import { systemRoutes } from './routes/systemRoutes.js'
 import { env } from './config/env.js'
 
@@ -13,6 +14,11 @@ export function createApp() {
       credentials: true,
     })
   )
+
+  app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), (request, response) => {
+    return stripeWebhookHandler(request as typeof request & { body: Buffer }, response)
+  })
+
   app.use(express.json())
 
   app.get('/', (_request, response) => {
@@ -24,6 +30,7 @@ export function createApp() {
   })
 
   app.use('/api/auth', authRoutes)
+  app.use('/api/billing', billingRoutes)
   app.use('/api/systems', systemRoutes)
 
   return app
