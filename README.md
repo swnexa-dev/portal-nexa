@@ -6,7 +6,26 @@ Portal centralizado para login, cadastro, trial de 14 dias e acesso unificado ao
 
 - `frontend`: portal React/Vite com login, cadastro e home dos sistemas.
 - `backend`: API Node + TypeScript + MongoDB Atlas para auth centralizado e emissao de JWT por sistema.
-- `fluxio`: sistema existente que depois pode consumir o JWT emitido pela Nexa.
+- `modulos/fluxio`: sistema integrado ao portal Nexa.
+- `modulos/produtiv`: sistema adicional da plataforma.
+
+## Desenvolvimento local
+
+- Rode `npm run dev` na raiz para subir tudo de uma vez.
+- O script inicia automaticamente:
+  - `backend` e `frontend` do portal Nexa
+  - `backend` e `frontend` de cada sistema dentro de `modulos/*` que tenha `package.json`
+- Para subir apenas um sistema especifico, use por exemplo:
+  - `npm run dev -- fluxio`
+  - `npm run dev -- produtiv`
+  - `npm run dev -- nexa`
+
+## Como adicionar novos sistemas
+
+- Crie a pasta do sistema dentro de `modulos`.
+- Se existir `modulos/NOME/frontend/package.json`, o frontend entra no start automatico.
+- Se existir `modulos/NOME/backend/package.json`, o backend entra no start automatico.
+- Assim, novos modulos passam a ser incluidos sem precisar editar o script da raiz.
 
 ## Fluxo base
 
