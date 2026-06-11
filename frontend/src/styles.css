@@ -325,8 +325,9 @@ button {
 
 .systems-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 420px);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 420px));
   gap: 16px;
+  align-items: start;
 }
 
 .system-card,

@@ -3,6 +3,7 @@ import { fetchCatalog, fetchMe, launchSystem, login, register, requestRegisterCo
 import type { AuthUser, CatalogSystem } from './types'
 import nexaLogo from './assets/img-nexa.png'
 import fluxioImage from './assets/img-fluxio.png'
+import produtivImage from './assets/img-produtiv.jpeg'
 
 const storageKey = 'nexa.portal.token'
 
@@ -15,6 +16,27 @@ type SessionState = {
 }
 
 type RegisterStep = 'details' | 'verification'
+
+const fallbackSystems: CatalogSystem[] = [
+  {
+    slug: 'fluxio',
+    name: 'Fluxio',
+    description: 'Crie formulários, acompanhe solicitações e gerencie processos com fluxos Kanban.',
+    accent: '#0f766e',
+    launchUrl: import.meta.env.VITE_FLUXIO_URL ?? 'http://localhost:5174',
+    plans: [],
+    access: { allowed: true, viaTrial: true, hasSubscription: false },
+  },
+  {
+    slug: 'produtiv',
+    name: 'Produtiv',
+    description: 'Acompanhe produção odontológica, lançamentos e indicadores por login do portal.',
+    accent: '#b45309',
+    launchUrl: import.meta.env.VITE_PRODUTIV_URL ?? 'http://localhost:5175',
+    plans: [],
+    access: { allowed: true, viaTrial: true, hasSubscription: false },
+  },
+]
 
 const initialRegisterState = {
   name: '',
@@ -109,7 +131,19 @@ export default function App() {
       user: meResult.user,
       remainingTrialDays: meResult.meta.remainingTrialDays,
     })
-    setSystems(catalogResult.systems.filter((system) => system.slug === 'fluxio'))
+    const mergedSystems = fallbackSystems.map((fallback) => {
+      const fromCatalog = catalogResult.systems.find((system) => system.slug === fallback.slug)
+      if (fromCatalog) return fromCatalog
+      return {
+        ...fallback,
+        access: {
+          allowed: true,
+          viaTrial: catalogResult.meta.trialActive,
+          hasSubscription: false,
+        },
+      }
+    })
+    setSystems(mergedSystems)
     setLoading(false)
   }
 
@@ -372,27 +406,31 @@ export default function App() {
 
       <main>
         <section className="systems-grid">
-          {systems.map((system) => (
-            <button
-              key={system.slug}
-              type="button"
-              className="system-card"
-              onClick={() => handleLaunch(system.slug)}
-              style={{ ['--card-accent' as string]: system.accent }}
-            >
-              <div className="system-card-top">
-                <span className="system-dot" />
-                <span className={`status-pill ${system.access.allowed ? 'allowed' : 'blocked'}`}>
-                  {system.access.allowed ? 'Liberado' : 'Bloqueado'}
-                </span>
-              </div>
-              <div className="system-card__image-shell">
-                <img src={fluxioImage} alt="Fluxio" className="system-card__image" />
-              </div>
-              <h3>{system.name}</h3>
-              <p>{system.description}</p>
-            </button>
-          ))}
+          {systems.map((system) => {
+            const systemImage = system.slug === 'produtiv' ? produtivImage : fluxioImage
+
+            return (
+              <button
+                key={system.slug}
+                type="button"
+                className="system-card"
+                onClick={() => handleLaunch(system.slug)}
+                style={{ ['--card-accent' as string]: system.accent }}
+              >
+                <div className="system-card-top">
+                  <span className="system-dot" />
+                  <span className={`status-pill ${system.access.allowed ? 'allowed' : 'blocked'}`}>
+                    {system.access.allowed ? 'Liberado' : 'Bloqueado'}
+                  </span>
+                </div>
+                <div className="system-card__image-shell">
+                  <img src={systemImage} alt={system.name} className="system-card__image" />
+                </div>
+                <h3>{system.name}</h3>
+                <p>{system.description}</p>
+              </button>
+            )
+          })}
         </section>
       </main>
     </div>
