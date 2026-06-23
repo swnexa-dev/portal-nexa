@@ -193,8 +193,47 @@ function normalizeRegisterField(field: keyof typeof initialRegisterState, value:
 }
 
 function formatDate(value: string | null) {
-  if (!value) return 'Sem renovação definida'
+  if (!value) return 'data indisponível'
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value))
+}
+
+function getBillingStatusLabel(subscription: BillingSummary['subscription']) {
+  if (!subscription) return 'Sem assinatura ativa'
+  if (subscription.isRefunded) return 'Reembolsada'
+  if (subscription.isActive && subscription.renewsAutomatically) return 'Assinatura ativa'
+  if (subscription.isActive && subscription.isCancelingAtPeriodEnd) return 'Cancelada'
+  if (subscription.status === 'past_due') return 'Pagamento pendente'
+  return 'Sem assinatura ativa'
+}
+
+function getBillingStatusText(subscription: BillingSummary['subscription'], remainingTrialDays: number) {
+  if (!subscription) {
+    return remainingTrialDays > 0
+      ? `Seu trial ainda tem ${remainingTrialDays} dia(s) restante(s).`
+      : 'Seu trial terminou. Assine para continuar acessando todos os apps.'
+  }
+
+  if (subscription.isRefunded) {
+    return 'Pagamento reembolsado. A assinatura foi encerrada sem período contratado restante.'
+  }
+
+  if (subscription.isActive && subscription.renewsAutomatically) {
+    return `Próxima renovação automática em ${formatDate(subscription.currentPeriodEndsAt)}.`
+  }
+
+  if (subscription.isActive && subscription.isCancelingAtPeriodEnd) {
+    return `Cancelamento solicitado. O acesso continua até ${formatDate(subscription.cancellationEffectiveAt ?? subscription.currentPeriodEndsAt)}.`
+  }
+
+  if (subscription.isInactiveByCancellation) {
+    return 'Assinatura inativa por pedido de cancelamento.'
+  }
+
+  if (subscription.status === 'past_due') {
+    return 'Pagamento pendente. Atualize a cobrança para manter o acesso.'
+  }
+
+  return 'Sem assinatura ativa. Assine para continuar acessando todos os apps.'
 }
 
 function validateRegisterForm(form: typeof initialRegisterState) {
@@ -955,19 +994,13 @@ export default function App() {
                 </article>
 
                 <article className="dashboard-panel__card">
-                  <span className={`status-pill ${billingSummary.subscription?.status === 'active' ? 'allowed' : 'blocked'}`}>
-                    {billingSummary.subscription?.status === 'active' ? 'Assinatura ativa' : 'Sem assinatura ativa'}
+                  <span className={`status-pill ${billingSummary.subscription?.isActive ? 'allowed' : 'blocked'}`}>
+                    {getBillingStatusLabel(billingSummary.subscription)}
                   </span>
                   <h3>Status da cobrança</h3>
-                  <p>
-                    {billingSummary.subscription
-                      ? `Próxima renovação em ${formatDate(billingSummary.subscription.currentPeriodEndsAt)}.`
-                      : session.remainingTrialDays > 0
-                        ? `Seu trial ainda tem ${session.remainingTrialDays} dia(s) restante(s).`
-                        : 'Seu trial terminou. Assine para continuar acessando todos os apps.'}
-                  </p>
+                  <p>{getBillingStatusText(billingSummary.subscription, session.remainingTrialDays)}</p>
                   <div className="dashboard-panel__actions">
-                    {billingSummary.subscription?.status === 'active' ? (
+                    {billingSummary.subscription?.isActive ? (
                       <button type="button" className="primary-button" disabled={billingActionLoading} onClick={() => void handleOpenCustomerPortal()}>
                         {billingActionLoading ? 'Abrindo portal...' : 'Gerenciar cobrança'}
                       </button>

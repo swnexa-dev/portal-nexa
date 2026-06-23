@@ -4,9 +4,15 @@ const userSubscriptionSchema = new Schema(
   {
     systemSlug: { type: String, required: true, trim: true },
     planSlug: { type: String, required: true, trim: true },
+    stripeSubscriptionId: { type: String, default: null, trim: true },
     status: { type: String, required: true, enum: ['active', 'inactive', 'past_due'], default: 'active' },
     activatedAt: { type: Date, default: Date.now },
     currentPeriodEndsAt: { type: Date, default: null },
+    renewsAutomatically: { type: Boolean, default: true },
+    cancelAtPeriodEnd: { type: Boolean, default: false },
+    cancellationEffectiveAt: { type: Date, default: null },
+    canceledAt: { type: Date, default: null },
+    refundedAt: { type: Date, default: null },
   },
   { _id: false }
 )

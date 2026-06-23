@@ -3,7 +3,7 @@ import { env } from '../config/env.js'
 import { getSystemBySlug, systemCatalog } from '../config/catalog.js'
 import { requireAuth } from '../middleware/auth.js'
 import { findUserById } from '../services/authService.js'
-import { canAccessSystem, hasActiveSubscription, isTrialActive, remainingTrialDays } from '../utils/access.js'
+import { canAccessSystem, hasActiveSubscription, hasStartedPaidSubscription, isTrialActive, remainingTrialDays } from '../utils/access.js'
 import { signSystemAccessToken } from '../utils/jwt.js'
 
 export const systemRoutes = Router()
@@ -21,7 +21,7 @@ systemRoutes.get('/catalog', requireAuth, async (request, response) => {
       launchUrl: process.env[system.launchUrlEnv] ?? system.launchUrlFallback,
       access: {
         allowed: canAccessSystem(user, system.slug),
-        viaTrial: isTrialActive(user),
+        viaTrial: !hasStartedPaidSubscription(user, system.slug) && isTrialActive(user),
         hasSubscription: hasActiveSubscription(user, system.slug),
       },
     })),

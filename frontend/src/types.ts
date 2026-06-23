@@ -1,9 +1,15 @@
 export type UserSubscription = {
   systemSlug: string
   planSlug: string
+  stripeSubscriptionId: string | null
   status: 'active' | 'inactive' | 'past_due'
   activatedAt: string
   currentPeriodEndsAt: string | null
+  renewsAutomatically: boolean
+  cancelAtPeriodEnd: boolean
+  cancellationEffectiveAt: string | null
+  canceledAt: string | null
+  refundedAt: string | null
 }
 
 export type AuthUser = {
@@ -51,6 +57,15 @@ export type BillingSummary = {
   subscription: {
     status: 'active' | 'inactive' | 'past_due'
     currentPeriodEndsAt: string | null
+    renewsAutomatically: boolean
+    cancelAtPeriodEnd: boolean
+    cancellationEffectiveAt: string | null
+    canceledAt: string | null
+    refundedAt: string | null
+    isActive: boolean
+    isCancelingAtPeriodEnd: boolean
+    isInactiveByCancellation: boolean
+    isRefunded: boolean
   } | null
   hasStripeCustomer: boolean
 }

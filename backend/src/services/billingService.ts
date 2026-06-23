@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { env } from '../config/env.js'
 import { UserModel, type UserDocument } from '../models/User.js'
+import { getSubscriptionAccessState } from '../utils/access.js'
 
 const allAccessSystemSlug = 'all-access'
 const allAccessPlanSlug = 'all-access-monthly'
@@ -21,6 +22,21 @@ type StripeSubscription = {
   status: string
   customer: string
   current_period_end?: number
+  cancel_at_period_end?: boolean
+  cancel_at?: number | null
+  canceled_at?: number | null
+  ended_at?: number | null
+}
+
+type StripeRefundLike = {
+  id: string
+  status?: string
+  customer?: string | null
+  subscription?: string | null
+  charge?: string | null
+  payment_intent?: string | null
+  refunded?: boolean
+  metadata?: { userId?: string }
 }
 
 type StripeEvent = {
@@ -62,6 +78,23 @@ async function stripeRequest<T>(path: string, body: URLSearchParams) {
   return data as T
 }
 
+async function stripeGet<T>(path: string) {
+  ensureStripeConfigured()
+
+  const response = await fetch(`https://api.stripe.com${path}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+    },
+  })
+
+  const data = (await response.json()) as T & { error?: { message?: string } }
+  if (!response.ok) {
+    throw new Error(data.error?.message ?? 'Falha ao comunicar com o Stripe')
+  }
+  return data as T
+}
+
 async function getOrCreateStripeCustomer(user: UserDocument) {
   if (user.stripeCustomerId) {
     return user.stripeCustomerId
@@ -89,23 +122,64 @@ function applyAllAccessSubscription(user: UserDocument, stripeSubscription: Stri
   const currentPeriodEndsAt = stripeSubscription.current_period_end
     ? new Date(stripeSubscription.current_period_end * 1000)
     : null
+  const cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end === true
+  const canceledAt = stripeSubscription.canceled_at ? new Date(stripeSubscription.canceled_at * 1000) : null
+  const endedAt = stripeSubscription.ended_at ? new Date(stripeSubscription.ended_at * 1000) : null
+  const cancelAt = stripeSubscription.cancel_at ? new Date(stripeSubscription.cancel_at * 1000) : null
+  const cancellationEffectiveAt = status === 'inactive'
+    ? endedAt ?? canceledAt ?? currentPeriodEndsAt
+    : cancelAtPeriodEnd
+      ? cancelAt ?? currentPeriodEndsAt
+      : null
+  const renewsAutomatically = status === 'active' && !cancelAtPeriodEnd
 
-  const currentEntryIndex = user.subscriptions.findIndex((subscription) => subscription.systemSlug === allAccessSystemSlug)
+  const currentEntryIndex = user.subscriptions.findIndex((subscription) => {
+    if (subscription.stripeSubscriptionId && subscription.stripeSubscriptionId === stripeSubscription.id) return true
+    return subscription.systemSlug === allAccessSystemSlug
+  })
 
   if (currentEntryIndex >= 0) {
     user.subscriptions[currentEntryIndex].planSlug = allAccessPlanSlug
+    user.subscriptions[currentEntryIndex].stripeSubscriptionId = stripeSubscription.id
     user.subscriptions[currentEntryIndex].status = status
     user.subscriptions[currentEntryIndex].activatedAt = new Date()
     user.subscriptions[currentEntryIndex].currentPeriodEndsAt = currentPeriodEndsAt
+    user.subscriptions[currentEntryIndex].renewsAutomatically = renewsAutomatically
+    user.subscriptions[currentEntryIndex].cancelAtPeriodEnd = cancelAtPeriodEnd
+    user.subscriptions[currentEntryIndex].cancellationEffectiveAt = cancellationEffectiveAt
+    user.subscriptions[currentEntryIndex].canceledAt = canceledAt ?? endedAt
+    if (status === 'active') {
+      user.subscriptions[currentEntryIndex].refundedAt = null
+    }
   } else {
     user.subscriptions.push({
       systemSlug: allAccessSystemSlug,
       planSlug: allAccessPlanSlug,
+      stripeSubscriptionId: stripeSubscription.id,
       status,
       activatedAt: new Date(),
       currentPeriodEndsAt,
+      renewsAutomatically,
+      cancelAtPeriodEnd,
+      cancellationEffectiveAt,
+      canceledAt: canceledAt ?? endedAt,
+      refundedAt: null,
     })
   }
+}
+
+function deactivateAllAccessSubscription(user: UserDocument, refundedAt = new Date()) {
+  const currentEntryIndex = user.subscriptions.findIndex((subscription) => subscription.systemSlug === allAccessSystemSlug)
+
+  if (currentEntryIndex < 0) return
+
+  user.subscriptions[currentEntryIndex].status = 'inactive'
+  user.subscriptions[currentEntryIndex].currentPeriodEndsAt = refundedAt
+  user.subscriptions[currentEntryIndex].renewsAutomatically = false
+  user.subscriptions[currentEntryIndex].cancelAtPeriodEnd = false
+  user.subscriptions[currentEntryIndex].cancellationEffectiveAt = refundedAt
+  user.subscriptions[currentEntryIndex].canceledAt = refundedAt
+  user.subscriptions[currentEntryIndex].refundedAt = refundedAt
 }
 
 export async function createCheckoutSession(userId: string) {
@@ -161,6 +235,7 @@ export async function getBillingSummary(userId: string) {
   }
 
   const subscription = user.subscriptions.find((entry) => entry.systemSlug === allAccessSystemSlug) ?? null
+  const subscriptionState = subscription ? getSubscriptionAccessState(subscription) : null
 
   return {
     planName: 'Nexa All Access',
@@ -170,6 +245,15 @@ export async function getBillingSummary(userId: string) {
       ? {
           status: subscription.status,
           currentPeriodEndsAt: subscription.currentPeriodEndsAt,
+          renewsAutomatically: subscriptionState?.renewsAutomatically ?? false,
+          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
+          cancellationEffectiveAt: subscription.cancellationEffectiveAt,
+          canceledAt: subscription.canceledAt,
+          refundedAt: subscription.refundedAt,
+          isActive: subscriptionState?.isActive ?? false,
+          isCancelingAtPeriodEnd: subscriptionState?.isCancelingAtPeriodEnd ?? false,
+          isInactiveByCancellation: subscriptionState?.isInactiveByCancellation ?? false,
+          isRefunded: subscriptionState?.isRefunded ?? false,
         }
       : null,
     hasStripeCustomer: Boolean(user.stripeCustomerId),
@@ -236,6 +320,35 @@ async function findUserForStripeEvent(payload: Record<string, unknown>) {
   return null
 }
 
+async function findUserForRefundEvent(payload: StripeRefundLike) {
+  if (payload.customer) {
+    const userByCustomer = await UserModel.findOne({ stripeCustomerId: payload.customer })
+    if (userByCustomer) return userByCustomer
+  }
+
+  if (payload.subscription) {
+    const userBySubscription = await UserModel.findOne({ 'subscriptions.stripeSubscriptionId': payload.subscription })
+    if (userBySubscription) return userBySubscription
+  }
+
+  if (payload.metadata?.userId) {
+    const userByMetadata = await UserModel.findById(payload.metadata.userId)
+    if (userByMetadata) return userByMetadata
+  }
+
+  if (payload.charge) {
+    const charge = await stripeGet<{ customer?: string | null; subscription?: string | null }>(`/v1/charges/${payload.charge}`)
+    return findUserForRefundEvent({ ...payload, customer: charge.customer, subscription: charge.subscription })
+  }
+
+  if (payload.payment_intent) {
+    const paymentIntent = await stripeGet<{ customer?: string | null }>(`/v1/payment_intents/${payload.payment_intent}`)
+    return findUserForRefundEvent({ ...payload, customer: paymentIntent.customer })
+  }
+
+  return null
+}
+
 export async function handleStripeWebhook(event: StripeEvent) {
   if (event.type === 'checkout.session.completed') {
     const payload = event.data.object
@@ -260,6 +373,19 @@ export async function handleStripeWebhook(event: StripeEvent) {
     }
 
     applyAllAccessSubscription(user, payload)
+    await user.save()
+    return
+  }
+
+  if (event.type === 'charge.refunded' || event.type === 'refund.created' || event.type === 'refund.updated' || event.type === 'charge.refund.updated') {
+    const payload = event.data.object as StripeRefundLike
+    const isRefundConfirmed = payload.refunded === true || payload.status === 'succeeded'
+    if (!isRefundConfirmed) return
+
+    const user = await findUserForRefundEvent(payload)
+    if (!user) return
+
+    deactivateAllAccessSubscription(user)
     await user.save()
   }
 }
