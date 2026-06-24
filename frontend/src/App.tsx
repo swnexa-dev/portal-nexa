@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { confirmPasswordReset, createBillingCheckout, createBillingPortal, fetchBillingSummary, fetchCatalog, fetchMe, launchSystem, login, register, requestPasswordResetCode, requestRegisterCode, verifyPasswordResetCode, verifyRegisterCode } from './lib/api'
-import type { AuthUser, BillingSummary, CatalogSystem } from './types'
+import ReactMarkdown from 'react-markdown'
+import { acceptLegalDocuments, confirmPasswordReset, createBillingCheckout, createBillingPortal, fetchBillingSummary, fetchCatalog, fetchLegalVersions, fetchMe, launchSystem, login, register, requestPasswordResetCode, requestRegisterCode, verifyPasswordResetCode, verifyRegisterCode } from './lib/api'
+import type { AuthUser, BillingSummary, CatalogSystem, LegalVersions } from './types'
 import nexaLogo from './assets/img-nexa.png'
 import fluxioImage from './assets/img-fluxio.png'
 import produtivImage from './assets/img-produtiv.jpeg'
 
 const storageKey = 'nexa.portal.token'
+const fallbackLegalVersions: LegalVersions = {
+  legalTermsVersion: '2026-06',
+  privacyPolicyVersion: '2026-06',
+}
 
 type AuthMode = 'login' | 'register'
 
@@ -236,6 +241,56 @@ function getBillingStatusText(subscription: BillingSummary['subscription'], rema
   return 'Sem assinatura ativa. Assine para continuar acessando todos os apps.'
 }
 
+function needsLegalAcceptance(user: AuthUser, legalVersions: LegalVersions) {
+  return (
+    user.termsAccepted !== true ||
+    user.privacyAccepted !== true ||
+    user.legalTermsVersion !== legalVersions.legalTermsVersion ||
+    user.privacyPolicyVersion !== legalVersions.privacyPolicyVersion
+  )
+}
+
+function LegalDocumentPage({ type }: { type: 'terms' | 'privacy' }) {
+  const isTerms = type === 'terms'
+  const documentPath = isTerms ? '/legal/termos-de-uso.md' : '/legal/politica-de-privacidade.md'
+  const [documentText, setDocumentText] = useState('')
+  const [documentError, setDocumentError] = useState('')
+  const [legalVersions, setLegalVersions] = useState<LegalVersions>(fallbackLegalVersions)
+
+  useEffect(() => {
+    fetchLegalVersions()
+      .then(setLegalVersions)
+      .catch(() => setLegalVersions(fallbackLegalVersions))
+
+    fetch(documentPath)
+      .then((response) => {
+        if (!response.ok) throw new Error('Documento indisponível')
+        return response.text()
+      })
+      .then(setDocumentText)
+      .catch(() => setDocumentError('Não foi possível carregar este documento agora.'))
+  }, [documentPath])
+
+  return (
+    <main className="legal-page">
+      <section className="legal-page__content">
+        <span className="eyebrow">Nexa Systems</span>
+        <h1>{isTerms ? 'Termos de Uso' : 'Política de Privacidade'}</h1>
+        <p>
+          Versão vigente: {isTerms ? legalVersions.legalTermsVersion : legalVersions.privacyPolicyVersion}
+        </p>
+        {documentError ? <p className="legal-page__error">{documentError}</p> : null}
+        {documentText ? (
+          <div className="legal-page__document">
+            <ReactMarkdown>{documentText}</ReactMarkdown>
+          </div>
+        ) : null}
+        <a href="/" className="legal-page__back">Voltar ao portal</a>
+      </section>
+    </main>
+  )
+}
+
 function validateRegisterForm(form: typeof initialRegisterState) {
   if (form.name.trim().length < 3) return 'Nome muito curto'
   if (form.name.length > 100) return 'Nome deve ter no máximo 100 caracteres'
@@ -254,6 +309,7 @@ function validateVerificationCode(form: typeof initialRegisterState) {
 }
 
 export default function App() {
+  const currentPath = window.location.pathname.replace(/\/$/, '')
   const settingsMenuRef = useRef<HTMLDivElement | null>(null)
   const [mode, setMode] = useState<AuthMode>('login')
   const [registerStep, setRegisterStep] = useState<RegisterStep>('details')
@@ -285,10 +341,15 @@ export default function App() {
   const [resetMode, setResetMode] = useState(false)
   const [resetForm, setResetForm] = useState(initialResetState)
   const [showForgotPasswordLink, setShowForgotPasswordLink] = useState(false)
+  const [legalAcceptedChecked, setLegalAcceptedChecked] = useState(false)
+  const [legalAccepting, setLegalAccepting] = useState(false)
+  const [legalAcceptError, setLegalAcceptError] = useState('')
+  const [legalVersions, setLegalVersions] = useState<LegalVersions>(fallbackLegalVersions)
   const passwordRules = getPasswordRules(registerForm.password)
   const passwordRulesSatisfied = Object.values(passwordRules).every(Boolean)
   const resetPasswordRules = getPasswordRules(resetForm.password)
   const resetPasswordRulesSatisfied = Object.values(resetPasswordRules).every(Boolean)
+  const legalAcceptanceRequired = session ? needsLegalAcceptance(session.user, legalVersions) : false
 
   useEffect(() => {
     if (!resendAvailableAt) {
@@ -320,6 +381,12 @@ export default function App() {
       window.localStorage.removeItem(storageKey)
       setLoading(false)
     })
+  }, [])
+
+  useEffect(() => {
+    fetchLegalVersions()
+      .then(setLegalVersions)
+      .catch(() => setLegalVersions(fallbackLegalVersions))
   }, [])
 
   useEffect(() => {
@@ -449,6 +516,7 @@ export default function App() {
 
   async function handleLaunch(systemSlug: string) {
     if (!session) return
+    if (legalAcceptanceRequired) return
     setMessage('')
 
     try {
@@ -474,7 +542,26 @@ export default function App() {
     setActivePanel(null)
     setBillingSummary(null)
     setShowForgotPasswordLink(false)
+    setLegalAcceptedChecked(false)
+    setLegalAcceptError('')
     setLoading(false)
+  }
+
+  async function handleAcceptLegalDocuments() {
+    if (!session || !legalAcceptedChecked) return
+
+    setLegalAccepting(true)
+    setLegalAcceptError('')
+
+    try {
+      const result = await acceptLegalDocuments(session.accessToken)
+      setSession((current) => current ? { ...current, user: result.user } : current)
+      setLegalAcceptedChecked(false)
+    } catch (error) {
+      setLegalAcceptError(error instanceof Error ? error.message : 'Não foi possível registrar o aceite. Tente novamente.')
+    } finally {
+      setLegalAccepting(false)
+    }
   }
 
   async function openBillingPanel() {
@@ -622,6 +709,14 @@ export default function App() {
     setMessage('')
     setRegisterInfoMessage('')
     setResendAvailableAt(null)
+  }
+
+  if (currentPath === '/termos-de-uso') {
+    return <LegalDocumentPage type="terms" />
+  }
+
+  if (currentPath === '/politica-de-privacidade') {
+    return <LegalDocumentPage type="privacy" />
   }
 
   if (loading) {
@@ -1082,6 +1177,39 @@ export default function App() {
           })}
         </section>
       </main>
+
+      {legalAcceptanceRequired ? (
+        <div className="legal-modal" role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
+          <div className="legal-modal__panel">
+            <span className="eyebrow">Documentos legais</span>
+            <h2 id="legal-modal-title">Atualização dos termos</h2>
+            <p>
+              Para continuar utilizando o Portal Nexa Systems, é necessário ler e concordar com nossos Termos de Uso e nossa Política de Privacidade.
+            </p>
+            <div className="legal-modal__links">
+              <a href="/termos-de-uso" target="_blank" rel="noreferrer">Termos de Uso</a>
+              <a href="/politica-de-privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a>
+            </div>
+            <label className="legal-modal__check">
+              <input
+                type="checkbox"
+                checked={legalAcceptedChecked}
+                onChange={(event) => setLegalAcceptedChecked(event.target.checked)}
+              />
+              <span>Li e concordo com os Termos de Uso e a Política de Privacidade do Portal Nexa Systems.</span>
+            </label>
+            {legalAcceptError ? <p className="legal-modal__error">{legalAcceptError}</p> : null}
+            <button
+              type="button"
+              className="primary-button legal-modal__action"
+              disabled={!legalAcceptedChecked || legalAccepting}
+              onClick={() => void handleAcceptLegalDocuments()}
+            >
+              {legalAccepting ? 'Registrando aceite...' : 'Aceitar e continuar'}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

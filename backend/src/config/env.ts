@@ -16,6 +16,8 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID_ALL_ACCESS: z.string().optional(),
+  LEGAL_TERMS_VERSION: z.string().default('2026-06'),
+  PRIVACY_POLICY_VERSION: z.string().default('2026-06'),
   FLUXIO_URL: z.string().optional(),
   CHECKLISTS_URL: z.string().optional(),
   AGENDAMENTOS_URL: z.string().optional()

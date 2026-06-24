@@ -21,6 +21,12 @@ export type AuthUser = {
   trialStartedAt: string
   trialEndsAt: string
   subscriptions: UserSubscription[]
+  termsAccepted: boolean
+  termsAcceptedAt: string | null
+  privacyAccepted: boolean
+  privacyAcceptedAt: string | null
+  legalTermsVersion: string | null
+  privacyPolicyVersion: string | null
 }
 
 export type CatalogSystem = {
@@ -48,6 +54,11 @@ export type AuthResponse = {
   meta: {
     remainingTrialDays: number
   }
+}
+
+export type LegalVersions = {
+  legalTermsVersion: string
+  privacyPolicyVersion: string
 }
 
 export type BillingSummary = {

@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { authRoutes } from './routes/authRoutes.js'
 import { billingRoutes, stripeWebhookHandler } from './routes/billingRoutes.js'
+import { legalRoutes } from './routes/legalRoutes.js'
 import { systemRoutes } from './routes/systemRoutes.js'
 import { env } from './config/env.js'
 
@@ -31,6 +32,7 @@ export function createApp() {
 
   app.use('/api/auth', authRoutes)
   app.use('/api/billing', billingRoutes)
+  app.use('/api/legal', legalRoutes)
   app.use('/api/systems', systemRoutes)
 
   return app

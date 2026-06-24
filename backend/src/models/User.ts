@@ -28,6 +28,12 @@ const userSchema = new Schema(
     stripeCustomerId: { type: String, default: null, trim: true },
     trialStartedAt: { type: Date, required: true },
     trialEndsAt: { type: Date, required: true },
+    termsAccepted: { type: Boolean, default: false },
+    termsAcceptedAt: { type: Date, default: null },
+    privacyAccepted: { type: Boolean, default: false },
+    privacyAcceptedAt: { type: Date, default: null },
+    legalTermsVersion: { type: String, default: null, trim: true },
+    privacyPolicyVersion: { type: String, default: null, trim: true },
     subscriptions: { type: [userSubscriptionSchema], default: [] },
   },
   { timestamps: true }

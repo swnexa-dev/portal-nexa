@@ -3,6 +3,7 @@ import { env } from '../config/env.js'
 import { UserModel, type UserDocument } from '../models/User.js'
 import { EmailVerificationModel } from '../models/EmailVerification.js'
 import { sendEmailVerificationCode, sendPasswordResetCode } from './emailService.js'
+import { buildPublicUser } from './legalService.js'
 import { signPortalToken } from '../utils/jwt.js'
 import { generateSixDigitCode, hashCode } from '../utils/code.js'
 
@@ -236,15 +237,6 @@ function buildAuthPayload(user: UserDocument) {
 
   return {
     accessToken,
-    user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      document: user.document,
-      trialStartedAt: user.trialStartedAt,
-      trialEndsAt: user.trialEndsAt,
-      subscriptions: user.subscriptions,
-    },
+    user: buildPublicUser(user),
   }
 }

@@ -1,4 +1,4 @@
-import type { AuthResponse, AuthUser, BillingSummary, CatalogSystem } from '../types'
+import type { AuthResponse, AuthUser, BillingSummary, CatalogSystem, LegalVersions } from '../types'
 
 function normalizeApiUrl(rawUrl: string) {
   const trimmed = rawUrl.trim().replace(/\/$/, '')
@@ -222,4 +222,26 @@ export async function createBillingPortal(accessToken: string) {
     throw new Error(getErrorMessage(data, 'Falha ao abrir portal de cobrança'))
   }
   return data as { url: string }
+}
+
+export async function acceptLegalDocuments(accessToken: string) {
+  const response = await fetch(`${apiUrl}/legal/accept`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  const data = await readJson<{ success: boolean; user: AuthUser } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao registrar aceite dos termos'))
+  }
+  return data as { success: boolean; user: AuthUser }
+}
+
+export async function fetchLegalVersions() {
+  const response = await fetch(`${apiUrl}/legal/versions`)
+  const data = await readJson<LegalVersions | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao carregar versões legais'))
+  }
+  return data as LegalVersions
 }

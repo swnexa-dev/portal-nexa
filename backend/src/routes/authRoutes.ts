@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth.js'
 import { loginUser, registerUser, findUserById, requestRegisterVerification, verifyRegisterCode, consumeRegisterCode, requestPasswordReset, verifyPasswordResetCode, resetPassword } from '../services/authService.js'
+import { buildPublicUser } from '../services/legalService.js'
 import { remainingTrialDays } from '../utils/access.js'
 
 function hasRepeatedDigits(value: string) {
@@ -217,16 +218,7 @@ authRoutes.get('/me', requireAuth, async (request, response) => {
   }
 
   return response.json({
-    user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      document: user.document,
-      trialStartedAt: user.trialStartedAt,
-      trialEndsAt: user.trialEndsAt,
-      subscriptions: user.subscriptions,
-    },
+    user: buildPublicUser(user),
     meta: {
       remainingTrialDays: remainingTrialDays(user),
     },

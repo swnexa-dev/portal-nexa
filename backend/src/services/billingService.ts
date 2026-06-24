@@ -13,6 +13,13 @@ type StripeCheckoutSessionResponse = {
   subscription: string | null
 }
 
+type StripeCheckoutSession = {
+  id: string
+  customer?: string | null
+  subscription?: string | StripeSubscription | null
+  metadata?: { userId?: string }
+}
+
 type StripePortalSessionResponse = {
   url: string
 }
@@ -22,10 +29,16 @@ type StripeSubscription = {
   status: string
   customer: string
   current_period_end?: number
+  items?: {
+    data?: Array<{
+      current_period_end?: number
+    }>
+  }
   cancel_at_period_end?: boolean
   cancel_at?: number | null
   canceled_at?: number | null
   ended_at?: number | null
+  metadata?: { userId?: string }
 }
 
 type StripeRefundLike = {
@@ -117,10 +130,15 @@ function buildSubscriptionStatus(stripeStatus: string): 'active' | 'inactive' | 
   return 'inactive'
 }
 
+function getSubscriptionPeriodEnd(stripeSubscription: StripeSubscription) {
+  return stripeSubscription.current_period_end ?? stripeSubscription.items?.data?.find((item) => item.current_period_end)?.current_period_end ?? null
+}
+
 function applyAllAccessSubscription(user: UserDocument, stripeSubscription: StripeSubscription) {
   const status = buildSubscriptionStatus(stripeSubscription.status)
-  const currentPeriodEndsAt = stripeSubscription.current_period_end
-    ? new Date(stripeSubscription.current_period_end * 1000)
+  const stripePeriodEnd = getSubscriptionPeriodEnd(stripeSubscription)
+  const currentPeriodEndsAt = stripePeriodEnd
+    ? new Date(stripePeriodEnd * 1000)
     : null
   const cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end === true
   const canceledAt = stripeSubscription.canceled_at ? new Date(stripeSubscription.canceled_at * 1000) : null
@@ -166,6 +184,15 @@ function applyAllAccessSubscription(user: UserDocument, stripeSubscription: Stri
       refundedAt: null,
     })
   }
+}
+
+async function getStripeSubscription(subscriptionId: string) {
+  return stripeGet<StripeSubscription>(`/v1/subscriptions/${subscriptionId}`)
+}
+
+async function getCompleteStripeSubscription(payload: StripeSubscription) {
+  if (getSubscriptionPeriodEnd(payload)) return payload
+  return getStripeSubscription(payload.id)
 }
 
 function deactivateAllAccessSubscription(user: UserDocument, refundedAt = new Date()) {
@@ -351,7 +378,7 @@ async function findUserForRefundEvent(payload: StripeRefundLike) {
 
 export async function handleStripeWebhook(event: StripeEvent) {
   if (event.type === 'checkout.session.completed') {
-    const payload = event.data.object
+    const payload = event.data.object as StripeCheckoutSession
     const user = await findUserForStripeEvent(payload)
     if (!user) return
 
@@ -359,20 +386,29 @@ export async function handleStripeWebhook(event: StripeEvent) {
     if (customerId && user.stripeCustomerId !== customerId) {
       user.stripeCustomerId = customerId
     }
+
+    if (typeof payload.subscription === 'string') {
+      const subscription = await getStripeSubscription(payload.subscription)
+      applyAllAccessSubscription(user, subscription)
+    } else if (payload.subscription && typeof payload.subscription === 'object') {
+      applyAllAccessSubscription(user, await getCompleteStripeSubscription(payload.subscription))
+    }
+
     await user.save()
     return
   }
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created' || event.type === 'customer.subscription.deleted') {
-    const payload = event.data.object as unknown as StripeSubscription & { metadata?: { userId?: string } }
-    const user = await findUserForStripeEvent(payload as unknown as Record<string, unknown>)
+    const payload = event.data.object as unknown as StripeSubscription
+    const subscription = await getCompleteStripeSubscription(payload)
+    const user = await findUserForStripeEvent(subscription as unknown as Record<string, unknown>)
     if (!user) return
 
-    if (payload.customer && user.stripeCustomerId !== payload.customer) {
-      user.stripeCustomerId = payload.customer
+    if (subscription.customer && user.stripeCustomerId !== subscription.customer) {
+      user.stripeCustomerId = subscription.customer
     }
 
-    applyAllAccessSubscription(user, payload)
+    applyAllAccessSubscription(user, subscription)
     await user.save()
     return
   }
