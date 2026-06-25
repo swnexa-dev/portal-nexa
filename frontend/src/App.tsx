@@ -23,6 +23,7 @@ type SessionState = {
 type RegisterStep = 'details' | 'verification'
 type ResetStep = 'request' | 'verification'
 type DashboardPanel = 'billing' | 'profile' | 'support' | null
+type PurchaseSyncStatus = 'syncing' | 'active' | 'delayed'
 
 function EyeIcon({ open }: { open: boolean }) {
   return (
@@ -345,6 +346,8 @@ export default function App() {
   const [legalAccepting, setLegalAccepting] = useState(false)
   const [legalAcceptError, setLegalAcceptError] = useState('')
   const [legalVersions, setLegalVersions] = useState<LegalVersions>(fallbackLegalVersions)
+  const [purchaseModalVisible, setPurchaseModalVisible] = useState(false)
+  const [purchaseSyncStatus, setPurchaseSyncStatus] = useState<PurchaseSyncStatus>('syncing')
   const passwordRules = getPasswordRules(registerForm.password)
   const passwordRulesSatisfied = Object.values(passwordRules).every(Boolean)
   const resetPasswordRules = getPasswordRules(resetForm.password)
@@ -407,7 +410,13 @@ export default function App() {
     if (!billingStatus) return
 
     if (billingStatus === 'success') {
-      setMessage('Pagamento iniciado com sucesso. Assim que o Stripe confirmar, sua assinatura será atualizada.')
+      const token = window.localStorage.getItem(storageKey)
+      setMessage('')
+      setPurchaseModalVisible(true)
+      setPurchaseSyncStatus('syncing')
+      if (token) {
+        void syncPurchasedSubscription(token)
+      }
     }
     if (billingStatus === 'cancelled') {
       setMessage('Checkout cancelado. Você pode tentar novamente quando quiser.')
@@ -417,6 +426,29 @@ export default function App() {
     nextUrl.searchParams.delete('billing')
     window.history.replaceState({}, '', nextUrl.toString())
   }, [])
+
+  async function syncPurchasedSubscription(accessToken: string) {
+    const maxAttempts = 8
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        await hydrateSession(accessToken)
+        const summary = await fetchBillingSummary(accessToken)
+        setBillingSummary(summary)
+
+        if (summary.subscription?.isActive) {
+          setPurchaseSyncStatus('active')
+          return
+        }
+      } catch {
+        // Keep the modal open while Stripe/webhook synchronization catches up.
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 1500))
+    }
+
+    setPurchaseSyncStatus('delayed')
+  }
 
   async function hydrateSession(accessToken: string) {
     const [meResult, catalogResult] = await Promise.all([fetchMe(accessToken), fetchCatalog(accessToken)])
@@ -1178,7 +1210,38 @@ export default function App() {
         </section>
       </main>
 
-      {legalAcceptanceRequired ? (
+      {purchaseModalVisible ? (
+        <div className="purchase-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-modal-title">
+          <div className="purchase-modal__panel">
+            <span className="eyebrow">Assinatura</span>
+            <h2 id="purchase-modal-title">Obrigado pela sua assinatura</h2>
+            {purchaseSyncStatus === 'syncing' ? (
+              <p>Estamos confirmando o pagamento com o Stripe e atualizando seu acesso automaticamente.</p>
+            ) : null}
+            {purchaseSyncStatus === 'active' ? (
+              <p>Pagamento confirmado. Seu acesso ao Portal Nexa Systems já foi liberado.</p>
+            ) : null}
+            {purchaseSyncStatus === 'delayed' ? (
+              <p>Seu pagamento foi iniciado, mas a confirmação ainda está sendo processada. Atualize a página em alguns instantes se o acesso não aparecer.</p>
+            ) : null}
+            <div className={`purchase-modal__status purchase-modal__status--${purchaseSyncStatus}`}>
+              <span />
+              <strong>
+                {purchaseSyncStatus === 'syncing' ? 'Sincronizando assinatura...' : null}
+                {purchaseSyncStatus === 'active' ? 'Acesso liberado' : null}
+                {purchaseSyncStatus === 'delayed' ? 'Confirmação pendente' : null}
+              </strong>
+            </div>
+            {purchaseSyncStatus !== 'syncing' ? (
+              <button type="button" className="primary-button purchase-modal__action" onClick={() => setPurchaseModalVisible(false)}>
+                Continuar
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {legalAcceptanceRequired && !purchaseModalVisible ? (
         <div className="legal-modal" role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
           <div className="legal-modal__panel">
             <span className="eyebrow">Documentos legais</span>

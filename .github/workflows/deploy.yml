@@ -1,0 +1,52 @@
+name: Deploy Portal Nexa
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy no servidor Windows
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $appPath = "C:\Users\INFO\Desktop\portal-nexa"
+
+          Write-Host "Usuário executando:"
+          whoami
+
+          Write-Host "Entrando na pasta do projeto..."
+          cd $appPath
+
+          Write-Host "Verificando ferramentas..."
+          git --version
+          node -v
+          npm -v
+          pm2 -v
+
+          Write-Host "Atualizando código pelo GitHub..."
+          git fetch origin
+          git reset --hard origin/master
+
+          Write-Host "Instalando dependências..."
+          if (Test-Path "package-lock.json") {
+            npm ci
+          } else {
+            npm install
+          }
+
+          Write-Host "Gerando build..."
+          npm run build
+
+          Write-Host "Reiniciando aplicação no PM2..."
+          pm2 restart all --update-env
+
+          Write-Host "Salvando lista atual do PM2..."
+          pm2 save
+
+          Write-Host "Deploy finalizado com sucesso."
