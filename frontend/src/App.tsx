@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { FiSettings } from 'react-icons/fi'
 import ReactMarkdown from 'react-markdown'
-import { acceptLegalDocuments, confirmPasswordReset, createBillingCheckout, createBillingPortal, fetchBillingSummary, fetchCatalog, fetchLegalVersions, fetchMe, launchSystem, login, register, requestPasswordResetCode, requestRegisterCode, verifyPasswordResetCode, verifyRegisterCode } from './lib/api'
+import { acceptLegalDocuments, confirmPasswordReset, createBillingCheckout, createBillingPortal, fetchBillingSummary, fetchCatalog, fetchLegalVersions, fetchMe, launchSystem, login, register, requestPasswordResetCode, requestRegisterCode, updateProfile, verifyPasswordResetCode, verifyRegisterCode } from './lib/api'
 import type { AuthUser, BillingSummary, CatalogSystem, LegalVersions } from './types'
 import nexaLogo from './assets/img-nexa.png'
 import fluxioImage from './assets/img-fluxio.png'
@@ -22,7 +23,7 @@ type SessionState = {
 
 type RegisterStep = 'details' | 'verification'
 type ResetStep = 'request' | 'verification'
-type DashboardPanel = 'billing' | 'profile' | 'support' | null
+type DashboardPanel = 'profile' | 'support' | null
 type PurchaseSyncStatus = 'syncing' | 'active' | 'delayed'
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -44,20 +45,6 @@ function EyeIcon({ open }: { open: boolean }) {
           strokeLinecap="round"
         />
       )}
-    </svg>
-  )
-}
-
-function GearIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="settings-button__icon" fill="none">
-      <path
-        d="M10.3 2.92a1 1 0 0 1 1.4 0l.78.79a1 1 0 0 0 1.06.22l1.03-.43a1 1 0 0 1 1.31.54l.45 1.07a1 1 0 0 0 .88.61h1.11a1 1 0 0 1 1 1v1.12a1 1 0 0 0 .62.92l1.02.43a1 1 0 0 1 .54 1.3l-.44 1.04a1 1 0 0 0 .22 1.06l.79.78a1 1 0 0 1 0 1.42l-.79.78a1 1 0 0 0-.22 1.06l.44 1.04a1 1 0 0 1-.54 1.3l-1.02.43a1 1 0 0 0-.62.92v1.12a1 1 0 0 1-1 1h-1.11a1 1 0 0 0-.88.61l-.45 1.07a1 1 0 0 1-1.31.54l-1.03-.43a1 1 0 0 0-1.06.22l-.78.79a1 1 0 0 1-1.4 0l-.78-.79a1 1 0 0 0-1.06-.22l-1.03.43a1 1 0 0 1-1.31-.54l-.45-1.07a1 1 0 0 0-.88-.61H4.75a1 1 0 0 1-1-1v-1.12a1 1 0 0 0-.62-.92l-1.02-.43a1 1 0 0 1-.54-1.3l.44-1.04a1 1 0 0 0-.22-1.06l-.79-.78a1 1 0 0 1 0-1.42l.79-.78a1 1 0 0 0 .22-1.06l-.44-1.04a1 1 0 0 1 .54-1.3l1.02-.43a1 1 0 0 0 .62-.92V6.19a1 1 0 0 1 1-1h1.11a1 1 0 0 0 .88-.61l.45-1.07a1 1 0 0 1 1.31-.54l1.03.43a1 1 0 0 0 1.06-.22l.78-.79Z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   )
 }
@@ -292,6 +279,169 @@ function LegalDocumentPage({ type }: { type: 'terms' | 'privacy' }) {
   )
 }
 
+function SubscriptionPage({
+  billingSummary,
+  billingLoading,
+  billingActionLoading,
+  remainingTrialDays,
+  onBack,
+  onSelectPlan,
+  onManageSubscription,
+}: {
+  billingSummary: BillingSummary | null
+  billingLoading: boolean
+  billingActionLoading: boolean
+  remainingTrialDays: number
+  onBack: () => void
+  onSelectPlan: () => void
+  onManageSubscription: () => void
+}) {
+  return (
+    <main className="subscription-page">
+      <section className="subscription-page__hero">
+        <div>
+          <span className="eyebrow">Assinatura</span>
+          <h1>Escolha uma assinatura</h1>
+          <p>Gerencie seu acesso aos módulos do Portal Nexa Systems em uma página dedicada e mais clara para contratação.</p>
+        </div>
+        <button type="button" className="ghost-button" onClick={onBack}>
+          Voltar ao portal
+        </button>
+      </section>
+
+      {billingLoading ? (
+        <section className="subscription-page__loading">
+          <p>Carregando informações da sua assinatura...</p>
+        </section>
+      ) : (
+        <section className="subscription-page__grid">
+          <article className="subscription-card subscription-card--featured">
+            <div className="subscription-card__top">
+              <span className="status-pill allowed">Plano disponível</span>
+              <strong>Assinatura mensal</strong>
+            </div>
+            <h2>Nexa All Access</h2>
+            <p>Libera todos os apps atuais e os próximos que entrarem no portal.</p>
+            <ul className="subscription-card__features">
+              <li>Acesso completo aos módulos liberados</li>
+              <li>Experiência centralizada no Portal Nexa Systems</li>
+              <li>Gerenciamento da assinatura na própria conta</li>
+            </ul>
+            <div className="subscription-card__footer">
+              <strong>{billingSummary?.priceLabel ?? 'Plano mensal'}</strong>
+              {billingSummary?.subscription?.isActive ? (
+                <button type="button" className="primary-button" disabled={billingActionLoading} onClick={onManageSubscription}>
+                  {billingActionLoading ? 'Abrindo...' : 'Gerenciar assinatura'}
+                </button>
+              ) : (
+                <button type="button" className="primary-button" disabled={billingActionLoading} onClick={onSelectPlan}>
+                  {billingActionLoading ? 'Redirecionando...' : 'Selecionar assinatura'}
+                </button>
+              )}
+            </div>
+          </article>
+
+          <aside className="subscription-summary">
+            <span className={`status-pill ${billingSummary?.subscription?.isActive ? 'allowed' : 'blocked'}`}>
+              {getBillingStatusLabel(billingSummary?.subscription ?? null)}
+            </span>
+            <h3>Sua situação atual</h3>
+            <p>{getBillingStatusText(billingSummary?.subscription ?? null, remainingTrialDays)}</p>
+            <div className="subscription-summary__meta">
+              <div>
+                <span className="eyebrow">Plano atual</span>
+                <strong>{billingSummary?.subscription?.isActive ? (billingSummary?.planName ?? 'Nexa All Access') : 'Sem plano ativo'}</strong>
+              </div>
+              <div>
+                <span className="eyebrow">Cobrança</span>
+                <strong>Mensal</strong>
+              </div>
+            </div>
+          </aside>
+        </section>
+      )}
+    </main>
+  )
+}
+
+function ProfilePage({
+  user,
+  saving,
+  error,
+  name,
+  phone,
+  onNameChange,
+  onPhoneChange,
+  onSave,
+  onBack,
+}: {
+  user: AuthUser
+  saving: boolean
+  error: string
+  name: string
+  phone: string
+  onNameChange: (value: string) => void
+  onPhoneChange: (value: string) => void
+  onSave: () => void
+  onBack: () => void
+}) {
+  return (
+    <main className="subscription-page">
+      <section className="subscription-page__hero">
+        <div>
+          <span className="eyebrow">Perfil</span>
+          <h1>Atualize seus dados</h1>
+          <p>Mantenha seu nome e telefone sempre atualizados para facilitar suporte, notificações e gestão da sua conta.</p>
+        </div>
+        <button type="button" className="ghost-button" onClick={onBack}>
+          Voltar ao portal
+        </button>
+      </section>
+
+      <section className="subscription-page__grid">
+        <article className="subscription-card subscription-card--featured">
+          <div className="subscription-card__top">
+            <span className="status-pill allowed">Conta principal</span>
+            <strong>Dados da conta</strong>
+          </div>
+          <h2>{user.name}</h2>
+          <p>{user.email}</p>
+          <div className="profile-form">
+            <label className="profile-form__field">
+              <span>Nome</span>
+              <input type="text" value={name} onChange={(event) => onNameChange(event.target.value.slice(0, 100))} />
+            </label>
+            <label className="profile-form__field">
+              <span>Telefone</span>
+              <input type="text" inputMode="numeric" value={phone} onChange={(event) => onPhoneChange(formatPhone(event.target.value))} />
+            </label>
+            {error ? <p className="profile-form__error">{error}</p> : null}
+            <button type="button" className="primary-button profile-form__action" disabled={saving} onClick={onSave}>
+              {saving ? 'Salvando...' : 'Atualizar dados'}
+            </button>
+          </div>
+        </article>
+
+        <aside className="subscription-summary">
+          <span className="status-pill allowed">Perfil ativo</span>
+          <h3>Resumo da conta</h3>
+          <p>Use esta página para manter seu cadastro principal alinhado com o Portal Nexa Systems.</p>
+          <div className="subscription-summary__meta">
+            <div>
+              <span className="eyebrow">E-mail</span>
+              <strong>{user.email}</strong>
+            </div>
+            <div>
+              <span className="eyebrow">Documento</span>
+              <strong>{user.document}</strong>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  )
+}
+
 function validateRegisterForm(form: typeof initialRegisterState) {
   if (form.name.trim().length < 3) return 'Nome muito curto'
   if (form.name.length > 100) return 'Nome deve ter no máximo 100 caracteres'
@@ -310,7 +460,7 @@ function validateVerificationCode(form: typeof initialRegisterState) {
 }
 
 export default function App() {
-  const currentPath = window.location.pathname.replace(/\/$/, '')
+  const [currentPath, setCurrentPath] = useState(window.location.pathname.replace(/\/$/, '') || '/')
   const settingsMenuRef = useRef<HTMLDivElement | null>(null)
   const [mode, setMode] = useState<AuthMode>('login')
   const [registerStep, setRegisterStep] = useState<RegisterStep>('details')
@@ -348,11 +498,20 @@ export default function App() {
   const [legalVersions, setLegalVersions] = useState<LegalVersions>(fallbackLegalVersions)
   const [purchaseModalVisible, setPurchaseModalVisible] = useState(false)
   const [purchaseSyncStatus, setPurchaseSyncStatus] = useState<PurchaseSyncStatus>('syncing')
+  const [profileName, setProfileName] = useState('')
+  const [profilePhone, setProfilePhone] = useState('')
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileError, setProfileError] = useState('')
   const passwordRules = getPasswordRules(registerForm.password)
   const passwordRulesSatisfied = Object.values(passwordRules).every(Boolean)
   const resetPasswordRules = getPasswordRules(resetForm.password)
   const resetPasswordRulesSatisfied = Object.values(resetPasswordRules).every(Boolean)
   const legalAcceptanceRequired = session ? needsLegalAcceptance(session.user, legalVersions) : false
+
+  function navigateTo(path: string) {
+    window.history.pushState({}, '', path)
+    setCurrentPath(path)
+  }
 
   useEffect(() => {
     if (!resendAvailableAt) {
@@ -384,6 +543,15 @@ export default function App() {
       window.localStorage.removeItem(storageKey)
       setLoading(false)
     })
+  }, [])
+
+  useEffect(() => {
+    function handlePopState() {
+      setCurrentPath(window.location.pathname.replace(/\/$/, '') || '/')
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
   useEffect(() => {
@@ -425,6 +593,7 @@ export default function App() {
     const nextUrl = new URL(window.location.href)
     nextUrl.searchParams.delete('billing')
     window.history.replaceState({}, '', nextUrl.toString())
+    setCurrentPath(nextUrl.pathname.replace(/\/$/, '') || '/')
   }, [])
 
   async function syncPurchasedSubscription(accessToken: string) {
@@ -457,6 +626,8 @@ export default function App() {
       user: meResult.user,
       remainingTrialDays: meResult.meta.remainingTrialDays,
     })
+    setProfileName(meResult.user.name)
+    setProfilePhone(meResult.user.phone)
     const mergedSystems = fallbackSystems.map((fallback) => {
       const fromCatalog = catalogResult.systems.find((system) => system.slug === fallback.slug)
       if (fromCatalog) return fromCatalog
@@ -576,6 +747,9 @@ export default function App() {
     setShowForgotPasswordLink(false)
     setLegalAcceptedChecked(false)
     setLegalAcceptError('')
+    setProfileName('')
+    setProfilePhone('')
+    setProfileError('')
     setLoading(false)
   }
 
@@ -600,9 +774,9 @@ export default function App() {
     if (!session) return
 
     setSettingsMenuOpen(false)
-    setActivePanel('billing')
     setBillingLoading(true)
     setMessage('')
+    navigateTo('/assinatura')
 
     try {
       const summary = await fetchBillingSummary(session.accessToken)
@@ -622,6 +796,40 @@ export default function App() {
   function openProfilePanel() {
     setSettingsMenuOpen(false)
     setActivePanel('profile')
+    navigateTo('/perfil')
+  }
+
+  async function handleSaveProfile() {
+    if (!session) return
+    setProfileError('')
+
+    if (profileName.trim().length < 3) {
+      setProfileError('Nome muito curto')
+      return
+    }
+
+    if (!/^\(\d{2}\)\s\d{5}-\d{4}$/.test(profilePhone)) {
+      setProfileError('Telefone inválido')
+      return
+    }
+
+    setProfileSaving(true)
+
+    try {
+      const result = await updateProfile(session.accessToken, {
+        name: profileName,
+        phone: profilePhone,
+      })
+
+      setSession((current) => current ? { ...current, user: result.user } : current)
+      setProfileName(result.user.name)
+      setProfilePhone(result.user.phone)
+      setMessage('Dados atualizados com sucesso.')
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Falha ao atualizar perfil')
+    } finally {
+      setProfileSaving(false)
+    }
   }
 
   async function handleStartCheckout() {
@@ -749,6 +957,42 @@ export default function App() {
 
   if (currentPath === '/politica-de-privacidade') {
     return <LegalDocumentPage type="privacy" />
+  }
+
+  if (currentPath === '/assinatura' && session) {
+    return (
+      <SubscriptionPage
+        billingSummary={billingSummary}
+        billingLoading={billingLoading}
+        billingActionLoading={billingActionLoading}
+        remainingTrialDays={session.remainingTrialDays}
+        onBack={() => {
+          setActivePanel(null)
+          navigateTo('/')
+        }}
+        onSelectPlan={() => void handleStartCheckout()}
+        onManageSubscription={() => void handleOpenCustomerPortal()}
+      />
+    )
+  }
+
+  if (currentPath === '/perfil' && session) {
+    return (
+      <ProfilePage
+        user={session.user}
+        saving={profileSaving}
+        error={profileError}
+        name={profileName}
+        phone={profilePhone}
+        onNameChange={setProfileName}
+        onPhoneChange={setProfilePhone}
+        onSave={() => void handleSaveProfile()}
+        onBack={() => {
+          setActivePanel(null)
+          navigateTo('/')
+        }}
+      />
+    )
   }
 
   if (loading) {
@@ -1069,7 +1313,7 @@ export default function App() {
               aria-label="Abrir menu de configurações"
               aria-expanded={settingsMenuOpen}
             >
-              <GearIcon />
+              <FiSettings aria-hidden="true" className="settings-button__icon" />
             </button>
             {settingsMenuOpen ? (
               <div className="settings-dropdown">
@@ -1094,93 +1338,6 @@ export default function App() {
       {message ? <div className="feedback error">{message}</div> : null}
 
       <main>
-        {activePanel === 'billing' ? (
-          <section className="dashboard-panel">
-            <div className="dashboard-panel__header">
-              <div>
-                <span className="eyebrow">Assinatura</span>
-                <h2>Nexa All Access</h2>
-                <p>Uma assinatura mensal para liberar todos os apps atuais e os próximos que entrarem no portal.</p>
-              </div>
-              <button type="button" className="ghost-button" onClick={() => setActivePanel(null)}>
-                Fechar
-              </button>
-            </div>
-
-            {billingLoading ? (
-              <div className="dashboard-panel__card">
-                <p>Carregando informações da assinatura...</p>
-              </div>
-            ) : billingSummary ? (
-              <div className="dashboard-panel__grid">
-                <article className="dashboard-panel__card">
-                  <span className="status-pill allowed">Plano global</span>
-                  <h3>{billingSummary.planName}</h3>
-                  <p>{billingSummary.includes}</p>
-                  <strong>{billingSummary.priceLabel}</strong>
-                </article>
-
-                <article className="dashboard-panel__card">
-                  <span className={`status-pill ${billingSummary.subscription?.isActive ? 'allowed' : 'blocked'}`}>
-                    {getBillingStatusLabel(billingSummary.subscription)}
-                  </span>
-                  <h3>Status da cobrança</h3>
-                  <p>{getBillingStatusText(billingSummary.subscription, session.remainingTrialDays)}</p>
-                  <div className="dashboard-panel__actions">
-                    {billingSummary.subscription?.isActive ? (
-                      <button type="button" className="primary-button" disabled={billingActionLoading} onClick={() => void handleOpenCustomerPortal()}>
-                        {billingActionLoading ? 'Abrindo portal...' : 'Gerenciar cobrança'}
-                      </button>
-                    ) : (
-                      <button type="button" className="primary-button" disabled={billingActionLoading} onClick={() => void handleStartCheckout()}>
-                        {billingActionLoading ? 'Redirecionando...' : 'Assinar com Stripe'}
-                      </button>
-                    )}
-                  </div>
-                </article>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {activePanel === 'support' ? (
-          <section className="dashboard-panel">
-            <div className="dashboard-panel__header">
-              <div>
-                <span className="eyebrow">Suporte</span>
-                <h2>Central de suporte</h2>
-                <p>Podemos conectar aqui seus canais oficiais de atendimento.</p>
-              </div>
-              <button type="button" className="ghost-button" onClick={() => setActivePanel(null)}>
-                Fechar
-              </button>
-            </div>
-            <div className="dashboard-panel__card">
-              <p>Sugestão inicial: e-mail de suporte, link do WhatsApp e base de ajuda.</p>
-            </div>
-          </section>
-        ) : null}
-
-        {activePanel === 'profile' ? (
-          <section className="dashboard-panel">
-            <div className="dashboard-panel__header">
-              <div>
-                <span className="eyebrow">Perfil</span>
-                <h2>Dados da conta</h2>
-                <p>Esse espaço já está pronto para evoluir com edição de perfil.</p>
-              </div>
-              <button type="button" className="ghost-button" onClick={() => setActivePanel(null)}>
-                Fechar
-              </button>
-            </div>
-            <div className="dashboard-panel__card">
-              <strong>{session.user.name}</strong>
-              <p>{session.user.email}</p>
-              <p>{session.user.phone}</p>
-            </div>
-          </section>
-        ) : null}
-
         <section className="systems-grid">
           {systems.map((system) => {
             const systemImage = system.slug === 'produtiv' ? produtivImage : fluxioImage
@@ -1216,7 +1373,7 @@ export default function App() {
             <span className="eyebrow">Assinatura</span>
             <h2 id="purchase-modal-title">Obrigado pela sua assinatura</h2>
             {purchaseSyncStatus === 'syncing' ? (
-              <p>Estamos confirmando o pagamento com o Stripe e atualizando seu acesso automaticamente.</p>
+              <p>Estamos confirmando seu pagamento e atualizando seu acesso automaticamente.</p>
             ) : null}
             {purchaseSyncStatus === 'active' ? (
               <p>Pagamento confirmado. Seu acesso ao Portal Nexa Systems já foi liberado.</p>
@@ -1237,6 +1394,20 @@ export default function App() {
                 Continuar
               </button>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {activePanel === 'support' ? (
+        <div className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
+          <div className="support-modal__panel">
+            <span className="eyebrow">Suporte</span>
+            <h2 id="support-modal-title">Fale com a nossa equipe</h2>
+            <p>Para atendimento e suporte do Portal Nexa Systems, entre em contato pelo e-mail abaixo.</p>
+            <a href="mailto:suporte@swnexa.com" className="support-modal__email">suporte@swnexa.com</a>
+            <button type="button" className="primary-button support-modal__action" onClick={() => setActivePanel(null)}>
+              Fechar
+            </button>
           </div>
         </div>
       ) : null}

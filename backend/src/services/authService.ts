@@ -227,6 +227,19 @@ export async function findUserById(userId: string) {
   return UserModel.findById(userId)
 }
 
+export async function updateUserProfile(userId: string, input: { name: string; phone: string }) {
+  const user = await UserModel.findById(userId)
+  if (!user) {
+    throw new Error('Usuário não encontrado')
+  }
+
+  user.name = input.name.trim()
+  user.phone = input.phone.trim()
+  await user.save()
+
+  return buildPublicUser(user)
+}
+
 function buildAuthPayload(user: UserDocument) {
   const accessToken = signPortalToken({
     sub: user._id.toString(),

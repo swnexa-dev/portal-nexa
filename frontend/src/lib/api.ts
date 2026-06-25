@@ -166,6 +166,23 @@ export async function fetchMe(accessToken: string) {
   return data as { user: AuthUser; meta: { remainingTrialDays: number } }
 }
 
+export async function updateProfile(accessToken: string, payload: { name: string; phone: string }) {
+  const response = await fetch(`${apiUrl}/auth/profile`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await readJson<{ user: AuthUser } | ApiError>(response)
+  if (!response.ok) {
+    throw new Error(getErrorMessage(data, 'Falha ao atualizar perfil'))
+  }
+  return data as { user: AuthUser }
+}
+
 export async function fetchCatalog(accessToken: string) {
   const response = await fetch(`${apiUrl}/systems/catalog`, {
     headers: { Authorization: `Bearer ${accessToken}` },

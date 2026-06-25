@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { requireAuth } from '../middleware/auth.js'
-import { loginUser, registerUser, findUserById, requestRegisterVerification, verifyRegisterCode, consumeRegisterCode, requestPasswordReset, verifyPasswordResetCode, resetPassword } from '../services/authService.js'
+import { loginUser, registerUser, findUserById, requestRegisterVerification, verifyRegisterCode, consumeRegisterCode, requestPasswordReset, verifyPasswordResetCode, resetPassword, updateUserProfile } from '../services/authService.js'
 import { buildPublicUser } from '../services/legalService.js'
 import { remainingTrialDays } from '../utils/access.js'
 
@@ -92,6 +92,11 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
   password: z.string().min(1, 'Senha obrigatória'),
+})
+
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(3, 'Nome muito curto').max(100, 'Nome deve ter no máximo 100 caracteres'),
+  phone: z.string().regex(/^\(\d{2}\)\s\d{5}-\d{4}$/, 'Telefone inválido'),
 })
 
 const requestPasswordResetSchema = z.object({
@@ -223,4 +228,20 @@ authRoutes.get('/me', requireAuth, async (request, response) => {
       remainingTrialDays: remainingTrialDays(user),
     },
   })
+})
+
+authRoutes.patch('/profile', requireAuth, async (request, response) => {
+  try {
+    const userId = request.auth?.sub
+    if (!userId) {
+      return response.status(401).json({ message: 'Não autenticado' })
+    }
+
+    const payload = updateProfileSchema.parse(request.body)
+    const user = await updateUserProfile(userId, payload)
+
+    return response.json({ user })
+  } catch (error) {
+    return response.status(400).json({ message: error instanceof Error ? error.message : 'Falha ao atualizar perfil' })
+  }
 })

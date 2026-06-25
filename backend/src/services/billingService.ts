@@ -266,7 +266,7 @@ export async function getBillingSummary(userId: string) {
 
   return {
     planName: 'Nexa All Access',
-    priceLabel: 'Mensal via Stripe',
+    priceLabel: 'Mensal',
     includes: 'Libera todos os apps atuais e futuros do portal.',
     subscription: subscription
       ? {
