@@ -8,6 +8,11 @@ function normalizeApiUrl(rawUrl: string) {
 const apiUrl = normalizeApiUrl(import.meta.env.VITE_API_URL ?? 'http://localhost:3000')
 
 async function readJson<T>(response: Response) {
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    return { message: response.ok ? 'Resposta inesperada da API' : 'Endpoint indisponível na API' } as T
+  }
+
   return (await response.json()) as T
 }
 
