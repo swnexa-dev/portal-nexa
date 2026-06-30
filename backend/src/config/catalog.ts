@@ -40,6 +40,18 @@ export const systemCatalog: SystemDefinition[] = [
       { slug: 'pro', name: 'Pro', priceLabel: 'Incluído', description: 'Mesma sessão do portal com dados isolados por usuário.' },
     ],
   },
+  {
+    slug: 'extok',
+    name: 'Extoq',
+    description: 'Controle itens, movimentações e saldo de estoque com dados separados por usuário do portal.',
+    launchUrlEnv: 'EXTOK_URL',
+    launchUrlFallback: 'http://localhost:5176',
+    accent: '#123f6d',
+    plans: [
+      { slug: 'starter', name: 'Starter', priceLabel: 'Incluído', description: 'Acesso ao controle de estoque com login Nexa.' },
+      { slug: 'pro', name: 'Pro', priceLabel: 'Incluído', description: 'Sessão única do portal com isolamento completo por usuário.' },
+    ],
+  },
 ]
 
 export function getSystemBySlug(systemSlug: string) {

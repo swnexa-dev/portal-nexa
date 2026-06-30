@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import { acceptLegalDocuments, confirmPasswordReset, createBillingCheckout, createBillingPortal, fetchBillingSummary, fetchCatalog, fetchLegalVersions, fetchMe, launchSystem, login, register, requestPasswordResetCode, requestRegisterCode, updateProfile, verifyPasswordResetCode, verifyRegisterCode } from './lib/api'
 import type { AuthUser, BillingSummary, CatalogSystem, LegalVersions } from './types'
 import nexaLogo from './assets/img-nexa.png'
+import extokImage from './assets/img-extok.png'
 import fluxioImage from './assets/img-fluxio.png'
 import produtivImage from './assets/img-produtiv.jpeg'
 
@@ -68,7 +69,22 @@ const fallbackSystems: CatalogSystem[] = [
     plans: [],
     access: { allowed: true, viaTrial: true, hasSubscription: false },
   },
+  {
+    slug: 'extok',
+    name: 'Extoq',
+    description: 'Controle itens, movimentações e saldo de estoque com dados separados por usuário do portal.',
+    accent: '#123f6d',
+    launchUrl: import.meta.env.VITE_EXTOK_URL ?? 'http://localhost:5176',
+    plans: [],
+    access: { allowed: true, viaTrial: true, hasSubscription: false },
+  },
 ]
+
+const systemImages: Record<string, string> = {
+  fluxio: fluxioImage,
+  produtiv: produtivImage,
+  extok: extokImage,
+}
 
 const initialRegisterState = {
   name: '',
@@ -1340,7 +1356,7 @@ export default function App() {
       <main>
         <section className="systems-grid">
           {systems.map((system) => {
-            const systemImage = system.slug === 'produtiv' ? produtivImage : fluxioImage
+            const systemImage = systemImages[system.slug] ?? fluxioImage
 
             return (
               <button
